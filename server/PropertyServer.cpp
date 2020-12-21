@@ -4,23 +4,9 @@
 // Property sever.  Mimics behavior provided on the device by init(8) and
 // some code built into libc.
 
+#define NELEM(x) ((int) (sizeof(x) / sizeof((x)[0])))
+#include "properties.h"
 #include "PropertyServer.h"
-
-/* listen here for new connections */
-static int mListenSock;
-
-/* list of connected fds to scan */
-static list<int>      mClientList;
-
-/* set of known properties */
-static list<Property> mPropList;
-
-/* copy a property into valueBuf; returns false if property not found */
-int get_property(const char* key, char* valueBuf);
-
-/* set the property, replacing it if it already exists */
-int set_property(const char* key, const char* value);
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -32,10 +18,22 @@ int set_property(const char* key, const char* value);
 #include <sys/stat.h>
 #include <sys/un.h>
 
+
+using namespace std;
+
+/*
+ * Destructor.
+ */
+PropertyServer::~PropertyServer(void)
+{
+    printf("Sim: in ~PropertyServer()\n");
+}
+
+
 /*
  * Clear out the list.
  */
-void clear_properties(void)
+void PropertyServer::ClearProperties(void)
 {
     typedef list<Property>::iterator PropIter;
 
@@ -47,13 +45,12 @@ void clear_properties(void)
 /*
  * Set default values for several properties.
  */
-void set_default_properties(void)
+void PropertyServer::SetDefaultProperties(void)
 {
     static const struct {
         const char* key;
         const char* value;
     } propList[] = {
-        { "service.name", "propd" },
         { "net.bt.name", "Android" },
         { "ro.kernel.mem", "60M" },
         { "ro.kernel.board_sardine.version", "4" },
@@ -122,7 +119,8 @@ void set_default_properties(void)
     };
 
     for (int i = 0; i < NELEM(propList); i++)
-        set_property(propList[i].key, propList[i].value);
+        SetProperty(propList[i].key, propList[i].value);
+
 }
 
 /*
@@ -132,7 +130,7 @@ void set_default_properties(void)
  *
  * Returns "true" if the property was found.
  */
-int get_property(const char* key, char* valueBuf)
+bool PropertyServer::GetProperty(const char* key, char* valueBuf)
 {
     typedef list<Property>::iterator PropIter;
 
@@ -143,7 +141,7 @@ int get_property(const char* key, char* valueBuf)
         Property& prop = *pi;
         if (strcmp(prop.key, key) == 0) {
             if (strlen(prop.value) >= PROPERTY_VALUE_MAX) {
-                printf(
+                fprintf(stderr,
                     "GLITCH: properties table holds '%s' '%s' (len=%d)\n",
                     prop.key, prop.value, (int) strlen(prop.value));
                 abort();
@@ -166,7 +164,7 @@ int get_property(const char* key, char* valueBuf)
  * If the property is immutable, this returns "false" without doing
  * anything.  (Not implemented.)
  */
-int set_property(const char* key, const char* value)
+bool PropertyServer::SetProperty(const char* key, const char* value)
 {
     typedef list<Property>::iterator PropIter;
 
@@ -200,7 +198,7 @@ int set_property(const char* key, const char* value)
  * Create a UNIX domain socket, carefully removing it if it already
  * exists.
  */
-int create_socket(const char* fileName)
+bool PropertyServer::CreateSocket(const char* fileName)
 {
     struct stat sb;
     bool result = false;
@@ -269,7 +267,7 @@ bail:
  *
  * Returns true on success, false if the fd should be closed.
  */
-int handle_request(int fd)
+bool PropertyServer::HandleRequest(int fd)
 {
     char reqBuf[PROPERTY_KEY_MAX + PROPERTY_VALUE_MAX];
     char valueBuf[1 + PROPERTY_VALUE_MAX];
@@ -290,7 +288,7 @@ int handle_request(int fd)
                 (int) actual, PROPERTY_KEY_MAX);
             return false;
         }
-        if (get_property(reqBuf, valueBuf+1))
+        if (GetProperty(reqBuf, valueBuf+1))
             valueBuf[0] = 1;
         else
             valueBuf[0] = 0;
@@ -308,7 +306,7 @@ int handle_request(int fd)
             return false;
         }
         //printf("SET property '%s'\n", reqBuf);
-        if (set_property(reqBuf, reqBuf + PROPERTY_KEY_MAX))
+        if (SetProperty(reqBuf, reqBuf + PROPERTY_KEY_MAX))
             valueBuf[0] = 1;
         else
             valueBuf[0] = 0;
@@ -330,7 +328,7 @@ int handle_request(int fd)
 /*
  * Serve up properties.
  */
-void serve_properties(void)
+void PropertyServer::ServeProperties(void)
 {
     typedef list<int>::iterator IntIter;
     fd_set readfds;
@@ -384,7 +382,7 @@ void serve_properties(void)
             if (FD_ISSET(fd, &readfds)) {
                 //printf("--- activity on %d\n", fd);
 
-                ok = handle_request(fd);
+                ok = HandleRequest(fd);
             }
 
             if (ok) {
@@ -406,16 +404,16 @@ void serve_properties(void)
  *
  * There is currently no "polite" way to shut this down.
  */
-void* propd_entry(void)
+void* PropertyServer::Entry(void)
 {
-    if (create_socket(SYSTEM_PROPERTY_PIPE_NAME)) {
+    if (CreateSocket(SYSTEM_PROPERTY_PIPE_NAME)) {
         assert(mListenSock >= 0);
-        set_default_properties();
+        SetDefaultProperties();
 
         /* loop until it's time to exit or we fail */
-        serve_properties();
+        ServeProperties();
 
-        clear_properties();
+        ClearProperties();
 
         /*
          * Close listen socket and all clients.
@@ -433,5 +431,6 @@ void* propd_entry(void)
 
 int main(void)
 {
-	propd_entry();
+	PropertyServer propsrv;
+	propsrv.Entry();
 }
