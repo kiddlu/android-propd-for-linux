@@ -6,6 +6,7 @@
 #ifndef _PROPERTY_SERVER_H
 #define _PROPERTY_SERVER_H
 
+#include "properties.h"
 #include "List.h"
 /*
  * Define a thread that responds to requests from clients to get/set/list
@@ -13,12 +14,9 @@
  */
 class PropertyServer {
 public:
-    PropertyServer(void) : mListenSock(-1) {}
-    virtual ~PropertyServer(void);
-
 
     /* thread entry point */
-    virtual void* Entry(void);
+    void* Entry(void);
 
     /* clear out all properties */
     void ClearProperties(void);
@@ -31,9 +29,6 @@ public:
 
     /* set the property, replacing it if it already exists */
     bool SetProperty(const char* key, const char* value);
-
-    /* property name constants */
-    static const char* kPropCheckJni;
 
 private:
     /* one property entry */

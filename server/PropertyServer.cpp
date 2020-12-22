@@ -21,15 +21,6 @@
 
 
 /*
- * Destructor.
- */
-PropertyServer::~PropertyServer(void)
-{
-    printf("Sim: in ~PropertyServer()\n");
-}
-
-
-/*
  * Clear out the list.
  */
 void PropertyServer::ClearProperties(void)
@@ -428,8 +419,3 @@ void* PropertyServer::Entry(void)
     return NULL;
 }
 
-int main(void)
-{
-	PropertyServer propsrv;
-	propsrv.Entry();
-}
