@@ -6,7 +6,7 @@
 #ifndef _PROPERTY_SERVER_H
 #define _PROPERTY_SERVER_H
 
-#include <list>
+#include "List.h"
 /*
  * Define a thread that responds to requests from clients to get/set/list
  * system properties.
@@ -55,10 +55,10 @@ private:
     int     mListenSock;
 
     /* list of connected fds to scan */
-    std::list<int>      mClientList;
+    List<int>      mClientList;
 
     /* set of known properties */
-    std::list<Property> mPropList;
+    List<Property> mPropList;
 };
 
 #endif // PROPERTY_SERVER_H

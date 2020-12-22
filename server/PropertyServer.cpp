@@ -19,7 +19,6 @@
 #include <sys/un.h>
 
 
-using namespace std;
 
 /*
  * Destructor.
@@ -35,7 +34,7 @@ PropertyServer::~PropertyServer(void)
  */
 void PropertyServer::ClearProperties(void)
 {
-    typedef list<Property>::iterator PropIter;
+    typedef List<Property>::iterator PropIter;
 
     for (PropIter pi = mPropList.begin(); pi != mPropList.end(); ++pi) {
         pi = mPropList.erase(pi);
@@ -132,7 +131,7 @@ void PropertyServer::SetDefaultProperties(void)
  */
 bool PropertyServer::GetProperty(const char* key, char* valueBuf)
 {
-    typedef list<Property>::iterator PropIter;
+    typedef List<Property>::iterator PropIter;
 
     assert(key != NULL);
     assert(valueBuf != NULL);
@@ -166,7 +165,7 @@ bool PropertyServer::GetProperty(const char* key, char* valueBuf)
  */
 bool PropertyServer::SetProperty(const char* key, const char* value)
 {
-    typedef list<Property>::iterator PropIter;
+    typedef List<Property>::iterator PropIter;
 
     assert(key != NULL);
     assert(value != NULL);
@@ -330,7 +329,7 @@ bool PropertyServer::HandleRequest(int fd)
  */
 void PropertyServer::ServeProperties(void)
 {
-    typedef list<int>::iterator IntIter;
+    typedef List<int>::iterator IntIter;
     fd_set readfds;
     int maxfd;
 
@@ -419,7 +418,7 @@ void* PropertyServer::Entry(void)
          * Close listen socket and all clients.
          */
         printf("Cleaning up socket list\n");
-        typedef list<int>::iterator IntIter;
+        typedef List<int>::iterator IntIter;
         for (IntIter ii = mClientList.begin(); ii != mClientList.end(); ++ii)
             close((*ii));
         close(mListenSock);
