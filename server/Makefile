@@ -1,14 +1,20 @@
 all: propd
 
-propd: main.o PropertyServer.o
-	g++ -o $@ $^
+propd: main.o libpropd.a
+	gcc -o $@ $^ -L. -lpropd -lstdc++
 
-main.o: main.cpp
-	g++ -c $^ -o $@ -I../lib
+main.o: main.c
+	gcc -c $^ -o $@ -I../client
+
+libpropd.a: propd.o PropertyServer.o
+	ar -r $@ $^
+
+propd.o: propd.cpp
+	g++ -c $^ -o $@ -I../client
 
 PropertyServer.o: PropertyServer.cpp
-	g++ -c $^ -o $@ -I../lib
+	g++ -c $^ -o $@ -I../client
 
 clean:
-	rm propd *.o
+	rm propd *.o *.a
 

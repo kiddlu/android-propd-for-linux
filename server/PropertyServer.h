@@ -16,7 +16,7 @@ class PropertyServer {
 public:
 
     /* thread entry point */
-    void* Entry(void);
+    virtual void* Entry(void);
 
     /* clear out all properties */
     void ClearProperties(void);

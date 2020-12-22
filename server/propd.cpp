@@ -1,10 +1,8 @@
-#include <stdio.h>
+#include "propd.h"
 #include "PropertyServer.h"
 
-int main()
+void propd_entry(void)
 {
 	PropertyServer propsrv;
 	propsrv.Entry();
-
-	return 0;
 }
