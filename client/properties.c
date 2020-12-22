@@ -191,7 +191,7 @@ int property_set(const char *key, const char *value)
         return -1;
     return 0;
 }
-
+/*
 int property_list(void (*propfn)(const char *key, const char *value, void *cookie), 
                   void *cookie)
 {
@@ -200,5 +200,38 @@ int property_list(void (*propfn)(const char *key, const char *value, void *cooki
     if (gPropFd < 0)
         return -1;
 
+    return 0;
+}
+*/
+int property_list(char *path)
+{
+    char sendBuf[1];
+    char recvBuf[1];
+	
+
+    //LOGV("PROPERTY LIST\n");
+    pthread_once(&gInitOnce, init);
+    if (gPropFd < 0)
+        return -1;
+
+    memset(sendBuf, 0xdd, sizeof(sendBuf));    // placate valgrind
+
+    sendBuf[0] = (char) kSystemPropertyList;
+
+    pthread_mutex_lock(&gPropertyFdLock);
+    if (write(gPropFd, sendBuf, sizeof(sendBuf)) != sizeof(sendBuf)) {
+        pthread_mutex_unlock(&gPropertyFdLock);
+        return -1;
+    }
+    if (read(gPropFd, recvBuf, sizeof(recvBuf)) != sizeof(recvBuf)) {
+        pthread_mutex_unlock(&gPropertyFdLock);
+        return -1;
+    }
+    pthread_mutex_unlock(&gPropertyFdLock);
+
+	sprintf(path, "%s", SYSTEM_PROPERTY_LIST_NAME);
+
+    if (recvBuf[0] != 1)
+        return -1;
     return 0;
 }

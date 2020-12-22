@@ -40,6 +40,9 @@ private:
     /* create the UNIX-domain socket we listen on */
     bool CreateSocket(const char* fileName);
 
+    /* create List File */
+    bool CreateListFile(const char* fileName);
+
     /* serve up properties */
     void ServeProperties(void);
 

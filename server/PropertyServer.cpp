@@ -41,71 +41,9 @@ void PropertyServer::SetDefaultProperties(void)
         const char* key;
         const char* value;
     } propList[] = {
-        { "net.bt.name", "Android" },
-        { "ro.kernel.mem", "60M" },
-        { "ro.kernel.board_sardine.version", "4" },
-        { "ro.kernel.console", "null" },
-        { "ro.build.id", "engineering" },
-        { "ro.build.date", "Wed Nov 28 07:44:14 PST 2007" },
-        { "ro.build.date.utc", "1196264654" },
-        { "ro.build.type", "eng" },
-        { "ro.product.device", "simulator" /*"sooner"*/ },
-        { "ro.product.brand", "generic" },
-        { "ro.build.user", "fadden" },
-        { "ro.build.host", "marathon" },
-        { "ro.config.nocheckin", "yes" },
-        { "ro.product.manufacturer", "" },
-        { "ro.radio.use-ppp", "no" },
-        { "ro.FOREGROUND_APP_ADJ", "0" },
-        { "ro.VISIBLE_APP_ADJ", "1" },
-        { "ro.SECONDARY_SERVER_ADJ", "2" },
-        { "ro.HIDDEN_APP_MIN_ADJ", "7" },
-        { "ro.CONTENT_PROVIDER_ADJ", "14" },
-        { "ro.EMPTY_APP_ADJ", "15" },
-        { "ro.FOREGROUND_APP_MEM", "1536" },
-        { "ro.VISIBLE_APP_MEM", "2048" },
-        { "ro.SECONDARY_SERVER_MEM", "4096" },
-        { "ro.HIDDEN_APP_MEM", "8192" },
-        { "ro.EMPTY_APP_MEM", "16384" },
-        { "ro.HOME_APP_ADJ", "4" },
-        { "ro.HOME_APP_MEM", "4096" },
-        { "ro.BACKUP_APP_ADJ", "2" },
-        { "ro.BACKUP_APP_MEM", "4096" },
-        //{ "init.svc.adbd", "running" },       // causes ADB-JDWP
-        { "init.svc.usbd", "running" },
-        { "init.svc.debuggerd", "running" },
-        { "init.svc.ril-daemon", "running" },
-        { "init.svc.zygote", "running" },
-        { "init.svc.runtime", "running" },
-        { "init.svc.dbus", "running" },
-        { "init.svc.pppd_gprs", "running" },
-        { "adb.connected", "0" },
-        //{ "use-adb-networking", "1" },
-        /*
-        { "status.battery.state", "Slow" },
-        { "status.battery.level", "5" },
-        { "status.battery.level_raw", "50" },
-        { "status.battery.level_scale", "9" },
-        */
+        { "ro.proccess.name", "propd" },
+        { "ro.os.name", "GNU/Linux" },
 
-        /* disable the annoying setup wizard */
-        { "app.setupwizard.disable", "1" },
-
-        /* Dalvik options, set by AndroidRuntime */
-        { "dalvik.vm.stack-trace-file", "/data/anr/traces.txt" },
-        //{ "dalvik.vm.execution-mode", "int:portable" },
-        { "dalvik.vm.enableassertions", "all" },    // -ea
-        { "dalvik.vm.dexopt-flags", "" },           // e.g. "v=a,o=v,m=n"
-        { "dalvik.vm.deadlock-predict", "off" },    // -Xdeadlockpredict
-        //{ "dalvik.vm.jniopts", "forcecopy" },       // -Xjniopts
-        { "log.redirect-stdio", "false" },          // -Xlog-stdio
-
-        /* SurfaceFlinger options */
-        { "debug.sf.nobootanimation", "1" },
-        { "debug.sf.showupdates", "0" },
-        { "debug.sf.showcpu", "0" },
-        { "debug.sf.showbackground", "0" },
-        { "debug.sf.showfps", "0" },
     };
 
     for (int i = 0; i < NELEM(propList); i++)
@@ -183,6 +121,62 @@ bool PropertyServer::SetProperty(const char* key, const char* value)
     mPropList.push_back(tmp);
     return true;
 }
+
+bool PropertyServer::CreateListFile(const char* fileName)
+{
+    typedef List<Property>::iterator PropIter;
+
+    struct stat sb;
+    bool result = false;
+    FILE *fp = NULL;
+    int cc;
+	char lineBuf[PROPERTY_KEY_MAX + PROPERTY_VALUE_MAX + 20];
+
+    cc = stat(fileName, &sb);
+    if (cc < 0) {
+        if (errno != ENOENT) {
+            printf(
+                "Unable to stat '%s' (errno=%d)\n", fileName, errno);
+            goto bail;
+        }
+    } else {
+        /* don't touch it if it's not a socket */
+        if (!(S_ISREG(sb.st_mode))) {
+            printf(
+                "File '%s' exists and is not a reg file\n", fileName);
+            goto bail;
+        }
+
+        /* remove the cruft */
+        if (unlink(fileName) < 0) {
+            printf(
+                "Unable to remove '%s' (errno=%d)\n", fileName, errno);
+            goto bail;
+        }
+    }	
+
+	fp = fopen(fileName, "w");
+
+    for (PropIter pi = mPropList.begin(); pi != mPropList.end(); ++pi) {
+        Property& prop = *pi;
+
+		memset(lineBuf, 0x00, sizeof(lineBuf));
+		sprintf(lineBuf, "%s: [%s]\n", prop.key, prop.value);
+		//printf("%s,%s\n", prop.key, prop.value);
+        fputs(lineBuf, fp);
+    }
+
+    if (fp != NULL)
+        fclose(fp);
+
+	return true;
+
+bail:
+    if (fp != NULL)
+        fclose(fp);
+    return result;
+}
+
 
 /*
  * Create a UNIX domain socket, carefully removing it if it already
@@ -306,7 +300,13 @@ bool PropertyServer::HandleRequest(int fd)
         }
     } else if (reqBuf[0] == kSystemPropertyList) {
         /* TODO */
-        assert(false);
+        //assert(false);
+		CreateListFile(SYSTEM_PROPERTY_LIST_NAME);
+        valueBuf[0] = 1;
+        if (write(fd, valueBuf, 1) != 1) {
+            fprintf(stderr, "Bad write on set\n");
+            return false;
+        }			
     } else {
         fprintf(stderr, "Unexpected request %d from prop client\n", reqBuf[0]);
         return false;
