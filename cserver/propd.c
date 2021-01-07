@@ -18,6 +18,7 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/un.h>
+#include <poll.h>
 
 #ifndef bool
 typedef unsigned char bool;
@@ -120,11 +121,11 @@ bool set_property(const char* key, const char* value)
         Property *prop = &(curr->prop);
         if (strcmp(prop->key, key) == 0) {
             if (value != NULL) {
-                printf("Prop: replacing [%s]: [%s] with [%s]\n",
-                    prop->key, prop->value, value);
+                //printf("Prop: replacing [%s]: [%s] with [%s]\n",
+                 //   prop->key, prop->value, value);
                 strcpy(prop->value, value);
             } else {
-                printf("Prop: removing [%s] index is [%d]\n", prop->key, i);
+                //printf("Prop: removing [%s] index is [%d]\n", prop->key, i);
                 proplist_delete(prophead, i+1);
             }
             return true;
@@ -338,73 +339,57 @@ bool handle_request(int fd)
 void serve_properties(void)
 {
     //typedef List<int>::iterator IntIter;
-    fd_set readfds;
-    int maxfd;
+    struct pollfd ufds[1];
+	int fd_count = 1;
+    ufds[0].fd = listen_sock;
+    ufds[0].events = POLLIN;
+	int fd;
 
     while (true) {
         int cc;
+        int nr, i, timeout = -1;
 
-        FD_ZERO(&readfds);
-        FD_SET(listen_sock, &readfds);
-        maxfd = listen_sock;
+        for (i = 0; i < fd_count; i++)
+            ufds[i].revents = 0;
+        nr = poll(ufds, fd_count, timeout);
+        if (nr <= 0)
+            continue;
 
-        for (int i = 0; i < FD_ARRAY_SIZE; ++i) {
-			if(fd_arr[i] != 0) {
-            	int fd = fd_arr[i];
+        if (ufds[0].revents == POLLIN)
 
-            	FD_SET(fd, &readfds);
-            	if (maxfd < fd)
-                	maxfd = fd;
-			}
-        }
 
-        cc = select(maxfd+1, &readfds, NULL, NULL, NULL);
-        if (cc < 0) {
-            if (errno == EINTR) {
-                printf("hiccup!\n");
-                continue;
-            }
-            return;
-        }
-        if (FD_ISSET(listen_sock, &readfds)) {
+        if (ufds[0].revents == POLLIN) {
             struct sockaddr_un from;
             socklen_t fromlen;
             int newSock;
 
             fromlen = sizeof(from);
             newSock = accept(listen_sock, (struct sockaddr*) &from, &fromlen);
-            if (newSock < 0 || newSock >= FD_ARRAY_SIZE) {
+            if (newSock < 0) {
                 printf(
                     "AF_UNIX accept failed (errno=%d)\n", errno);
             } else {
                 //printf("new props connection on %d --> %d\n",
                 //    mListenSock, newSock);
 
-                fd_arr[newSock] = newSock;
+				fd = newSock;
             }
-        }
 
-        for (int i = 0; i < FD_ARRAY_SIZE; ++i) {
-			if(fd_arr[i] != 0) {
-            int fd = fd_arr[i];
+
             bool ok = true;
 
-            if (FD_ISSET(fd, &readfds)) {
-                //printf("--- activity on %d\n", fd);
 
-                ok = handle_request(fd);
-            }
+            ok = handle_request(fd);
 
             if (ok) {
 
             } else {
                 //printf("--- closing %d\n", fd);
-				fd_arr[fd] = 0;
                 close(fd);
             }
-			}
         }
     }
+}
 
 /*
  * Thread entry point.
