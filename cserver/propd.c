@@ -7,7 +7,7 @@
 #define NELEM(x) ((int) (sizeof(x) / sizeof((x)[0])))
 #include "properties.h"
 #include "propd.h"
-#include "slist.h"
+#include "list.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -35,9 +35,8 @@ typedef unsigned char bool;
 extern bool set_property(const char* key, const char* value);
 
 int     listen_sock;
-#define	FD_ARRAY_SIZE	255
-int     fd_arr[FD_ARRAY_SIZE];
-slist *prophead = NULL;
+
+list_declare(prop_list);
 
 /*
  * Clear out the list.
@@ -78,11 +77,12 @@ bool get_property(const char* key, char* valueBuf)
     assert(key != NULL);
     assert(valueBuf != NULL);
 
-	struct node *curr =  prophead->head;
-	int length = proplist_get_length(prophead);
+	struct listnode *node;
+	Property *prop;
 
-    for (int i = 0; i < length; i++, curr=curr->next) {
-        Property *prop = &(curr->prop);
+
+    list_for_each(node, &prop_list) {
+        prop = node_to_item(node, Property, plist);
         if (strcmp(prop->key, key) == 0) {
             if (strlen(prop->value) >= PROPERTY_VALUE_MAX) {
                 fprintf(stderr,
@@ -110,33 +110,33 @@ bool get_property(const char* key, char* valueBuf)
  */
 bool set_property(const char* key, const char* value)
 {
-
-
+	struct listnode *node;
+	Property *prop;
     assert(key != NULL);
     //assert(value != NULL);
-	struct node *curr =  prophead->head;
-	int length = proplist_get_length(prophead);
 
-    for (int i = 0; i < length; i++, curr=curr->next) {
-        Property *prop = &(curr->prop);
+    list_for_each(node, &prop_list) {
+        prop = node_to_item(node, Property, plist);
         if (strcmp(prop->key, key) == 0) {
             if (value != NULL) {
                 //printf("Prop: replacing [%s]: [%s] with [%s]\n",
                  //   prop->key, prop->value, value);
                 strcpy(prop->value, value);
             } else {
-                //printf("Prop: removing [%s] index is [%d]\n", prop->key, i);
-                proplist_delete(prophead, i+1);
+                //printf("Prop: removing [%s]\n", prop->key);
+                list_remove(node);
+				free(prop);
             }
             return true;
         }
     }
 
     //printf("Prop: adding [%s]: [%s]\n", key, value);
-    Property tmp;
-    strcpy(tmp.key, key);
-    strcpy(tmp.value, value);
-	proplist_insert(prophead, length+1, &tmp);
+    Property *new = malloc(sizeof(Property));
+    strcpy(new->key, key);
+    strcpy(new->value, value);
+	list_add_tail(&prop_list, &(new->plist));
+
     return true;
 }
 
@@ -173,11 +173,12 @@ bool create_list_file(const char* fileName)
     }	
 
 	fp = fopen(fileName, "w");
-	struct node *curr =  prophead->head;
-	int length = proplist_get_length(prophead);
 
-    for (int i = 0; i < length; i++, curr=curr->next) {
-        Property *prop = &(curr->prop);
+	struct listnode *node;
+	Property *prop;
+
+    list_for_each(node, &prop_list) {
+        prop = node_to_item(node, Property, plist);
 		memset(lineBuf, 0x00, sizeof(lineBuf));
 		sprintf(lineBuf, "%s: [%s]\n", prop->key, prop->value);
 		//printf("%s,%s\n", prop.key, prop.value);
@@ -391,6 +392,18 @@ void serve_properties(void)
     }
 }
 
+void print_list()
+{
+	struct listnode *node;
+	Property *prop;
+
+    list_for_each(node, &prop_list) {
+        prop = node_to_item(node, Property, plist);
+        printf("Prop: [%s]: [%s]\n",
+        prop->key, prop->value);
+    }	
+}
+
 /*
  * Thread entry point.
  *
@@ -403,10 +416,11 @@ void propd_entry(void)
 {
     if (create_socket(SYSTEM_PROPERTY_PIPE_NAME)) {
         assert(listen_sock >= 0);
-		
-		prophead = proplist_init();
 
         set_default_properties();
+
+		//print_list();
+
 
         /* loop until it's time to exit or we fail */
         serve_properties();
@@ -417,11 +431,6 @@ void propd_entry(void)
          * Close listen socket and all clients.
          */
         printf("Cleaning up socket list\n");
-        for (int i = 0; i < FD_ARRAY_SIZE; ++i) {
-			if(fd_arr[i] != 0) {
-            	close(fd_arr[i]);
-			}
-		}
         close(listen_sock);
     }
 

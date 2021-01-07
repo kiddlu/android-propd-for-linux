@@ -1,6 +1,6 @@
 all: propd
 
-propd: main.o propd.o slist.o
+propd: main.o propd.o list.o
 	gcc -o $@ $^
 
 main.o: main.c
@@ -9,9 +9,9 @@ main.o: main.c
 propd.o: propd.c
 	gcc -c $^ -o $@ -I../client
 
-slist.o: slist.c
+list.o: list.c
 	gcc -c $^ -o $@ -I../client
-
+	
 clean:
 	rm propd *.o
 

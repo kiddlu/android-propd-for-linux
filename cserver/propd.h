@@ -1,12 +1,16 @@
 #ifndef _PROPD_H
 #define _PROPD_H
 
+
 #include "properties.h"
+#include "list.h"
 
 /* one property entry */
 typedef struct property {
     char    key[PROPERTY_KEY_MAX];
     char    value[PROPERTY_VALUE_MAX];
+
+	struct listnode plist;
 }Property;
 
 
