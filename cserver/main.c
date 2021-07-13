@@ -4,9 +4,7 @@
 
 int main()
 {
-	pthread_t thread_id;
-	propd_entry(&thread_id);
-	printf("propd_thread is %d\n", thread_id);
+	propd_entry();
 
 	while(1)
 	{

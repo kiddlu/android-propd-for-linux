@@ -1,6 +1,6 @@
 #ifndef _PROPD_H
 #define _PROPD_H
-
+#define _GNU_SOURCE
 #include <pthread.h>
 #include "properties.h"
 #include "list.h"
@@ -14,6 +14,6 @@ typedef struct property {
 }Property;
 
 
-void propd_entry(pthread_t *thread_id);
+void propd_entry(void);
 
 #endif//_PROPD_H

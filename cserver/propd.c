@@ -19,10 +19,14 @@
 #include <sys/stat.h>
 #include <sys/un.h>
 #include <poll.h>
+#include <fcntl.h>
+#include <stddef.h>
+#include <dirent.h>
 
 #ifndef bool
 typedef unsigned char bool;
 #endif
+static int persistent_properties_loaded = 0;
 
 #ifndef true
 #define true (1)
@@ -31,6 +35,8 @@ typedef unsigned char bool;
 #ifndef false
 #define false (0)
 #endif
+
+#define PERSISTENT_PROPERTY_DIR   "/tmp/property"
 
 extern bool set_property(const char* key, const char* value);
 
@@ -138,6 +144,42 @@ bool set_property(const char* key, const char* value)
 	list_add_tail(&prop_list, &(new->plist));
 
     return true;
+}
+
+static void write_peristent_property(const char *name, const char *value)
+{
+    const char *tempPath = PERSISTENT_PROPERTY_DIR "/.temp";
+    char path[PATH_MAX];
+    int fd, length;
+
+    snprintf(path, sizeof(path), "%s/%s", PERSISTENT_PROPERTY_DIR, name);
+
+    fd = open(tempPath, O_WRONLY|O_CREAT|O_TRUNC, 0600);
+    if (fd < 0) {
+        printf("Unable to write persistent property to temp file %s errno: %d\n", tempPath, errno);
+        return;   
+    }
+    write(fd, value, strlen(value));
+    close(fd);
+
+    if (rename(tempPath, path)) {
+        unlink(tempPath);
+        printf("Unable to rename persistent property file %s to %s\n", tempPath, path);
+    }
+}
+
+int property_set(const char *key, const char *value)
+{
+    if (persistent_properties_loaded &&
+            strncmp("persist.", key, strlen("persist.")) == 0) {
+        /* 
+         * Don't write properties to disk until after we have read all default properties
+         * to prevent them from being overwritten by default values.
+         */
+        write_peristent_property(key, value);
+    }
+	
+	return set_property(key, value);
 }
 
 bool create_list_file(const char* fileName)
@@ -309,7 +351,7 @@ bool handle_request(int fd)
             return false;
         }
         //printf("SET property '%s'\n", reqBuf);
-        if (set_property(reqBuf, reqBuf + PROPERTY_KEY_MAX))
+        if (property_set(reqBuf, reqBuf + PROPERTY_KEY_MAX))
             valueBuf[0] = 1;
         else
             valueBuf[0] = 0;
@@ -391,6 +433,45 @@ void serve_properties(void)
         }
     }
 }
+static void load_persistent_properties()
+{
+    DIR* dir = opendir(PERSISTENT_PROPERTY_DIR);
+    struct dirent*  entry;
+    char path[PATH_MAX];
+    char value[PROPERTY_VALUE_MAX];
+    int fd, length;
+
+    if (dir) {
+        while ((entry = readdir(dir)) != NULL) {
+            if (strncmp("persist.", entry->d_name, strlen("persist.")))
+                continue;
+#if HAVE_DIRENT_D_TYPE
+            if (entry->d_type != DT_REG)
+                continue;
+#endif
+            /* open the file and read the property value */
+            snprintf(path, sizeof(path), "%s/%s", PERSISTENT_PROPERTY_DIR, entry->d_name);
+            fd = open(path, O_RDONLY);
+            if (fd >= 0) {
+                length = read(fd, value, sizeof(value) - 1);
+                if (length >= 0) {
+                    value[length] = 0;
+                    property_set(entry->d_name, value);
+                } else {
+                    printf("Unable to read persistent property file %s errno: %d\n", path, errno);
+                }
+                close(fd);
+            } else {
+                printf("Unable to open persistent property file %s errno: %d\n", path, errno);
+            }
+        }
+        closedir(dir);
+    } else {
+        printf("Unable to open persistent property directory %s errno: %d\n", PERSISTENT_PROPERTY_DIR, errno);
+    }
+    
+    persistent_properties_loaded = 1;
+}
 
 void print_list()
 {
@@ -404,13 +485,18 @@ void print_list()
     }	
 }
 
+static pthread_t thread_id;
+
 void propd_entry_thread(void)
 {
+	printf("Propd thread init\n");
+    
     if (create_socket(SYSTEM_PROPERTY_PIPE_NAME)) {
         assert(listen_sock >= 0);
 
         set_default_properties();
 
+		load_persistent_properties();
 		//print_list();
 
         /* loop until it's time to exit or we fail */
@@ -437,11 +523,13 @@ void propd_entry_thread(void)
  *
  * There is currently no "polite" way to shut this down.
  */
-void propd_entry(pthread_t *thread_id)
+void propd_entry(void)
 {
-    pthread_create(thread_id, NULL, 
+    pthread_create(&thread_id, NULL, 
         propd_entry_thread, NULL);
 
-    pthread_setname_np(&thread_id, "prop service");
+    pthread_setname_np(thread_id, "prop service");
+
+    return;
 }
 
