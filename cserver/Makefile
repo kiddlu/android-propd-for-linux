@@ -1,7 +1,7 @@
 all: propd
 
 propd: main.o propd.o
-	gcc -o $@ $^
+	gcc -o $@ $^ -lpthread
 
 main.o: main.c
 	gcc -c $^ -o $@ -I../client

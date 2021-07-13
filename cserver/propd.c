@@ -404,15 +404,7 @@ void print_list()
     }	
 }
 
-/*
- * Thread entry point.
- *
- * This just sits and waits for a new connection.  It hands it off to the
- * main thread and then goes back to waiting.
- *
- * There is currently no "polite" way to shut this down.
- */
-void propd_entry(void)
+void propd_entry_thread(void)
 {
     if (create_socket(SYSTEM_PROPERTY_PIPE_NAME)) {
         assert(listen_sock >= 0);
@@ -420,7 +412,6 @@ void propd_entry(void)
         set_default_properties();
 
 		//print_list();
-
 
         /* loop until it's time to exit or we fail */
         serve_properties();
@@ -436,5 +427,21 @@ void propd_entry(void)
 
     printf("PropertyServer thread exiting\n");
     return;
+}
+
+/*
+ * Thread entry point.
+ *
+ * This just sits and waits for a new connection.  It hands it off to the
+ * main thread and then goes back to waiting.
+ *
+ * There is currently no "polite" way to shut this down.
+ */
+void propd_entry(pthread_t *thread_id)
+{
+    pthread_create(thread_id, NULL, 
+        propd_entry_thread, NULL);
+
+    pthread_setname_np(&thread_id, "prop service");
 }
 

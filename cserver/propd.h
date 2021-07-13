@@ -1,7 +1,7 @@
 #ifndef _PROPD_H
 #define _PROPD_H
 
-
+#include <pthread.h>
 #include "properties.h"
 #include "list.h"
 
@@ -14,6 +14,6 @@ typedef struct property {
 }Property;
 
 
-void propd_entry(void);
+void propd_entry(pthread_t *thread_id);
 
 #endif//_PROPD_H
