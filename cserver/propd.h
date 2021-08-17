@@ -2,8 +2,20 @@
 #define _PROPD_H
 #define _GNU_SOURCE
 #include <pthread.h>
-#include "properties.h"
 #include "list.h"
+
+#define PROPERTY_KEY_MAX   32
+#define PROPERTY_VALUE_MAX  92
+ 
+#define SYSTEM_PROPERTY_PIPE_NAME       "/tmp/linux-sysprop"
+#define SYSTEM_PROPERTY_LIST_NAME       "/tmp/linux-sysprop-list"
+
+enum {
+    kSystemPropertyUnknown = 0,
+    kSystemPropertyGet,
+    kSystemPropertySet,
+    kSystemPropertyList
+};
 
 /* one property entry */
 typedef struct property {
@@ -15,5 +27,7 @@ typedef struct property {
 
 
 void propd_entry(void);
+void prop_print_list(void);
+void prop_load_persistent_properties(void);
 
 #endif//_PROPD_H

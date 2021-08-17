@@ -5,13 +5,17 @@
 // some code built into libc.
 
 #define NELEM(x) ((int) (sizeof(x) / sizeof((x)[0])))
-#include "properties.h"
 #include "propd.h"
 #include "list.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <ctype.h>
+#include <fcntl.h>
+#include <stdarg.h>
+#include <dirent.h>
+#include <limits.h>
 #include <errno.h>
 #include <assert.h>
 #include <sys/types.h>
@@ -23,10 +27,10 @@
 #include <stddef.h>
 #include <dirent.h>
 
+//C++ code define
 #ifndef bool
 typedef unsigned char bool;
 #endif
-static int persistent_properties_loaded = 0;
 
 #ifndef true
 #define true (1)
@@ -36,11 +40,14 @@ static int persistent_properties_loaded = 0;
 #define false (0)
 #endif
 
+bool set_property(const char* key, const char* value);
+
+
+
+static int persistent_properties_loaded = 0;
+static int     listen_sock;
+static pthread_t thread_id;
 #define PERSISTENT_PROPERTY_DIR   "/tmp/property"
-
-extern bool set_property(const char* key, const char* value);
-
-int     listen_sock;
 
 list_declare(prop_list);
 
@@ -61,9 +68,7 @@ void set_default_properties(void)
         const char* key;
         const char* value;
     } propList[] = {
-        { "ro.proccess.name", "propd" },
-        { "ro.os.name", "GNU/Linux" },
-        { "ro.test.string", "HelloWorld" },
+        { "ro.proccess.name", "prop service" },
     };
 
     for (int i = 0; i < NELEM(propList); i++)
@@ -178,7 +183,12 @@ int property_set(const char *key, const char *value)
          */
         write_peristent_property(key, value);
     }
-	
+
+    if (strncmp("ctrl.", key, strlen("ctrl.")) == 0) {
+        //service_ctrl_handle(key, value);
+    }
+
+	//printf("%s, %s\n", key, value);
 	return set_property(key, value);
 }
 
@@ -433,7 +443,7 @@ void serve_properties(void)
         }
     }
 }
-static void load_persistent_properties()
+void prop_load_persistent_properties()
 {
     DIR* dir = opendir(PERSISTENT_PROPERTY_DIR);
     struct dirent*  entry;
@@ -473,7 +483,7 @@ static void load_persistent_properties()
     persistent_properties_loaded = 1;
 }
 
-void print_list()
+void prop_print_list()
 {
 	struct listnode *node;
 	Property *prop;
@@ -485,8 +495,6 @@ void print_list()
     }	
 }
 
-static pthread_t thread_id;
-
 void propd_entry_thread(void)
 {
 	printf("Propd thread init\n");
@@ -496,7 +504,7 @@ void propd_entry_thread(void)
 
         set_default_properties();
 
-		load_persistent_properties();
+		//prop_load_persistent_properties();
 		//print_list();
 
         /* loop until it's time to exit or we fail */

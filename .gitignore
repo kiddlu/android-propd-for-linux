@@ -9,9 +9,6 @@
 #
 # Normal rules
 #
-**/*.o
-**/*.a
-**/getprop
-**/setprop
-**/propd
+build/*
+
 
